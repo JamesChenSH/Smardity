@@ -1,0 +1,26 @@
+{
+  "name": "smardity",
+  "version": "0.0.1",
+  "description": "A smart contract vulnerable detection and fix system",
+  "homepage": "https://github.com/JamesChenSH/Smardity#readme",
+  "bugs": {
+    "url": "https://github.com/JamesChenSH/Smardity/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/JamesChenSH/Smardity.git"
+  },
+  "license": "ISC",
+  "author": "",
+  "type": "commonjs",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node app.js",
+    "dev": "nodemon app.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "nodemon": "^3.1.9"
+  }
+}
