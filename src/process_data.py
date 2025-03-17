@@ -1,5 +1,10 @@
 from torch.utils.data import Dataset
+import torch
+
 from typing import List, Tuple, Dict
+from transformers import RobertaTokenizer
+
+import os
 
 class SmardityDataset(Dataset):
     '''
@@ -10,7 +15,7 @@ class SmardityDataset(Dataset):
     examples: List[Tuple[str, str]]
     labels: Dict[str, int]
 
-    def __init__(self, dataset_path):
+    def __init__(self, dataset_path, tokenizer: RobertaTokenizer):
         '''
         Construct a SmardityDataset object from the directory at dataset_path.
         The directory has the following structure:
@@ -39,7 +44,23 @@ class SmardityDataset(Dataset):
         # TODO: Implement the constructor
         self.examples = []
         self.labels = {}
-        
+        # Get the list of directories in the dataset_path
+        dirs = os.listdir(dataset_path).sort()
+        # Assign each directory a label
+        for i, d in enumerate(dirs):
+            self.labels[d] = i
+            # Get the list of files in the directory
+            files = os.listdir(os.path.join(dataset_path, d))
+            # Read each file as text and add it to the examples list
+            for f in files:
+                if f.endswith('.sol'):
+                    with open(os.path.join(dataset_path, d, f), 'r') as file:
+                        raw_code = file.read()
+                    # Tokenize the code
+                    tokenized_code = tokenizer.encode(raw_code)    
+                    self.examples.append((tokenized_code, torch.tensor(i)))
+                else:
+                    continue
 
     def __len__(self):
         '''
