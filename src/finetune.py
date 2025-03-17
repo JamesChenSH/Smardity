@@ -1,66 +1,47 @@
-import os
+import os, torch
 os.environ['HF_HOME'] = './cache'
 
-import torch
-
-from transformers import AutoTokenizer, AutoModel
-from torch.utils.data.dataset import Dataset
-from torch.utils.data import DataLoader
-
-from typing import List, Tuple, Dict
+from transformers import RobertaTokenizer, RobertaModel
+from process_data import SmardityDataset
 
 # Load model directly
-tokenizer = AutoTokenizer.from_pretrained("microsoft/codebert-base")
-model = AutoModel.from_pretrained("microsoft/codebert-base")
+tokenizer = RobertaTokenizer.from_pretrained("microsoft/codebert-base")
+model = RobertaModel.from_pretrained("microsoft/codebert-base")
 
-class SmardityDataset(Dataset):
+def train_model(model, tokenizer, dataset):
     '''
-    A Solidity contract dataset. The dataset is a list of Solidity contracts, 
-    each with a label of their vulnerability type, in str.
+    Fine tune the model on the dataset
     '''
+    # Setup the model parameters
+    # 1. Freeze the pre-trained part of model 
+    for param in model.parameters():
+        param.requires_grad = False
+    # 2. Add classification head
+    classifier = torch.nn.Linear(model.config.hidden_size, len(dataset.labels.keys()))
+    model = torch.nn.Sequential(model, classifier).cuda()
 
-    examples: List[Tuple[str, str]]
-    labels: Dict[str, int]
+    # Set running metadata
+    # 1. Device
+    # 2. Loss function
+    # 3. Optimizer
+    # 4. Scheduler
 
-    def __init__(self, dataset_path):
-        '''
-        Construct a SmardityDataset object from the directory at dataset_path.
-        The directory has the following structure:
-        
-        <dataset_path>
-        ├── <vuln1>
-        │   ├── file1.sol
-        │   ├── file2.sol
-        │   └── ...
-        ├── <vuln2>
-        │   ├── file1.sol
-        │   ├── file2.sol
-        │   └── ...
-        └── ...
+    # Set model hyperparameters
+    # 1. Batch size
+    # 2. Learning rate
+    # 3. Number of epochs
+    # 4. Keep track of loss and best model
 
-        each <vuln1>, <vuln2>, are string labels of vulnerability types. We 
-        will store this dict of {vuln1: 0, vuln2: 1, ...} for the labels in this 
-        dataset object.
-
-        Each file*.sol is a Solidity contract with a vulnerability type of its
-        parent folder. We will read this files as text.
-        
-        The dataset is a list of tuples, each containing the contract and its 
-        vulnerability type. 
-        '''
-        # TODO: Implement the constructor
-        self.examples = []
-        self.labels = {}
-        
-
-    def __len__(self):
-        '''
-        Return length of the dataset
-        '''
-        return len(self.examples)
+    # Train the model    
 
 
-    def __getitem__(self, i):
-        # We’ll pad at the batch level.
-        return self.examples[i]
-    
+def evaluate(model, dataset):
+    '''
+    Evaluate the model on the dataset
+    '''
+    pass 
+
+
+if __name__ == "__main__":
+    dataset = SmardityDataset("data/contracts")
+    print(f"Dataset length: {len(dataset)}")
