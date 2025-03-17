@@ -213,6 +213,7 @@ input_str = f"[BUGGY] {prompt_buggy_code}\n[ANSWER]"
 tokenizer.pad_token = tokenizer.eos_token
 # print(tokenizer.eos_token_id)
 input_ids = tokenizer.encode(input_str, return_tensors="pt", max_length=500).to("mps")
+# mps is for macbook npu, change to cuda if on linux or windows
 model_reloaded.to("mps")
 with torch.no_grad():
     generated_ids = model_reloaded.generate(
