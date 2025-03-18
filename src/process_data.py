@@ -57,8 +57,12 @@ class SmardityDataset(Dataset):
                     with open(os.path.join(dataset_path, d, f), 'r') as file:
                         raw_code = file.read()
                     # Tokenize the code
-                    tokenized_code = tokenizer.encode(raw_code)    
-                    self.examples.append((tokenized_code, torch.tensor(i)))
+                    tokenized_code = tokenizer.encode(raw_code) 
+                    # Split the tokenized code into chunks of 512 tokens   
+                    cur_idx = 0
+                    while cur_idx < len(tokenized_code):
+                        self.examples.append((tokenized_code[cur_idx:cur_idx+512], i))
+                        cur_idx += 512
                 else:
                     continue
 
