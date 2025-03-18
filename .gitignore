@@ -3,3 +3,7 @@
 /.vscode/
 /data/
 /checkpoints/
+/__pycache__/
+*/__pycache__/
+/cache/
+*/cache/

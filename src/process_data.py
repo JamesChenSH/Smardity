@@ -1,5 +1,5 @@
 from torch.utils.data import Dataset
-import torch
+from tqdm import tqdm
 
 from typing import List, Tuple, Dict
 from transformers import RobertaTokenizer
@@ -45,14 +45,20 @@ class SmardityDataset(Dataset):
         self.examples = []
         self.labels = {}
         # Get the list of directories in the dataset_path
-        dirs = os.listdir(dataset_path).sort()
+        dirs = os.listdir(dataset_path)
+        dirs.sort()
+        print(dataset_path, dirs)
+        
         # Assign each directory a label
-        for i, d in enumerate(dirs):
+        for i, d in enumerate(dirs[0: 3]):
+            if d == '.DS_Store' or '.pt' in d:
+                continue
+            print(f"Parsing directory: {d}")
             self.labels[d] = i
             # Get the list of files in the directory
             files = os.listdir(os.path.join(dataset_path, d))
             # Read each file as text and add it to the examples list
-            for f in files:
+            for f in tqdm(files):
                 if f.endswith('.sol'):
                     with open(os.path.join(dataset_path, d, f), 'r') as file:
                         raw_code = file.read()
