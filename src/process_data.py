@@ -50,7 +50,7 @@ class SmardityDataset(Dataset):
         print(dataset_path, dirs)
         
         # Assign each directory a label
-        for i, d in enumerate(dirs[0: 3]):
+        for i, d in enumerate(dirs):
             if d == '.DS_Store' or '.pt' in d:
                 continue
             print(f"Parsing directory: {d}")

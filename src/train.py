@@ -33,23 +33,23 @@ def train_model(model: RobertaForSequenceClassification,
     for epoch in range(num_epochs):
         for (ids, labels) in tqdm(train_dataloader):
             # 1. Zero the gradients
-            optimizer.zero_grad()
-            
-            ids = ids.to(device)
-            labels = labels.to(device)
-            # 2. Forward pass
-            outputs = model(input_ids=ids, labels=labels)
-            loss_val = outputs[0]
-            
-            loss_val.backward()
-            optimizer.step()
-            scheduler.step()
+            with torch.autocast(device):
+                optimizer.zero_grad()
+                
+                ids = ids.to(device)
+                labels = labels.to(device)
+                # 2. Forward pass
+                outputs = model(input_ids=ids, labels=labels)
+                loss_val = outputs[0]
+                
+                loss_val.backward()
+                optimizer.step()
+                scheduler.step()
             # 7. Log the loss
             if steps % n_steps_to_val == 0:
                 # Evaluate the model
-                evaluate(model, val_dataloader)
+                evaluate(model, val_dataloader, device)
                 model.train()
-                print(f"Loss: {loss_val}")
             steps += 1
     
     # save model
@@ -71,15 +71,15 @@ def evaluate(model, dataset, device):
     accs = []
     losses = []
     
-    for (i, (ids, labels)) in tqdm(enumerate(dataset)):
+    for ids, labels in tqdm(dataset):
         ids = ids.to(device)
         labels = labels.to(device)
-        with torch.no_grad():
+        with torch.no_grad(), torch.autocast(device):
             outputs = model(input_ids=ids, labels=labels)
             # 1. Compute the loss
             loss_val = outputs[0]
             # 2. Compute the accuracy
-            accuracy = (outputs.argmax(dim=1) == labels).float().mean()
+            accuracy = (outputs[1].argmax(dim=1) == labels).float().mean()
             accs.append(accuracy)
             losses.append(loss_val)
         
@@ -93,26 +93,34 @@ def evaluate(model, dataset, device):
 if __name__ == "__main__":
     
     DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-    DEVICE = 'mps'
+    DATA_PATH = "../data"
+
+    torch.manual_seed(0)
+    # DEVICE = 'mps'        # for mac only
     
     # Load model directly
     tokenizer = RobertaTokenizer.from_pretrained("microsoft/codebert-base")
-    
-    dataset = SmardityDataset("../data", tokenizer)
+
+    if os.path.exists(DATA_PATH + "/dataset.pt"):
+        dataset = torch.load(DATA_PATH + "/dataset.pt", weights_only=False)
+    else:
+        dataset = SmardityDataset(DATA_PATH, tokenizer)
+        torch.save(dataset, DATA_PATH + "/dataset.pt")
+
     print(f"Dataset length: {len(dataset)}")
     model = RobertaForSequenceClassification.from_pretrained("microsoft/codebert-base", num_labels=len(dataset.labels.keys())).to(DEVICE)
     
     # Split the dataset into train and validation
-    train_size = int(0.8 * len(dataset))
+    train_size = int(0.9 * len(dataset))
     val_size = len(dataset) - train_size
     train_dataset, val_dataset = torch.utils.data.random_split(dataset, [train_size, val_size])
     
     # Create dataloaders
-    train_dataloader = torch.utils.data.DataLoader(train_dataset, batch_size=32, shuffle=True, collate_fn=collate)
-    val_dataloader = torch.utils.data.DataLoader(val_dataset, batch_size=32, shuffle=False, collate_fn=collate)
+    train_dataloader = torch.utils.data.DataLoader(train_dataset, batch_size=64, shuffle=True, collate_fn=collate)
+    val_dataloader = torch.utils.data.DataLoader(val_dataset, batch_size=128, shuffle=False, collate_fn=collate)
     
     # Train the model
-    model = train_model(model, tokenizer, train_dataloader, val_dataloader, 1, 1e-6, 100, DEVICE)
+    model = train_model(model, tokenizer, train_dataloader, val_dataloader, 1, 1e-4, 500, DEVICE)
 
 # %%
     # Test one
@@ -124,4 +132,4 @@ if __name__ == "__main__":
     while i < len(test_input_ids):
         prompts.append(test_input_ids[i:i+512])
         i += 512
-    print(model(prompt_buggy_code))
+    print(model(prompts))
