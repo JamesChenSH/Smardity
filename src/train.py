@@ -11,7 +11,8 @@ def train_model(model: RobertaForSequenceClassification,
                 train_dataloader, 
                 val_dataloader,
                 num_epochs,
-                learning_rate,
+                c_learning_rate,
+                r_learning_rate,
                 n_steps_to_val,
                 device):
     '''
@@ -22,29 +23,34 @@ def train_model(model: RobertaForSequenceClassification,
     # 1. Freeze the pre-trained part of model (optional)
     for param in model.roberta.parameters():
         param.requires_grad = False
+        
+    # for param in model.classifier.parameters():
+    #     param.requires_grad = True
     
     # Optimizer
-    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+    optimizer = torch.optim.AdamW([{
+        "params": model.classifier.parameters(), "lr": c_learning_rate},
+        {"params": model.roberta.parameters(), "lr": r_learning_rate}])
     # Scheduler
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.1)
+    # scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.1)
 
     # Training loop
     steps = 1
     for epoch in range(num_epochs):
-        for (ids, labels) in tqdm(train_dataloader):
+        iterator_obj = tqdm(train_dataloader)
+        for (ids, labels) in iterator_obj:
+            ids = ids.to(device)
+            labels = labels.to(device)
             # 1. Zero the gradients
+            optimizer.zero_grad()
             with torch.autocast(device):
-                optimizer.zero_grad()
-                
-                ids = ids.to(device)
-                labels = labels.to(device)
                 # 2. Forward pass
                 outputs = model(input_ids=ids, labels=labels)
-                loss_val = outputs[0]
-                
-                loss_val.backward()
-                optimizer.step()
-                scheduler.step()
+            loss_val = outputs[0]
+            iterator_obj.set_description(f"Epoch {epoch+1}/{num_epochs}, Loss: {loss_val}")
+            loss_val.backward()
+            optimizer.step()
+            # scheduler.step()
             # 7. Log the loss
             if steps % n_steps_to_val == 0:
                 # Evaluate the model
@@ -53,7 +59,7 @@ def train_model(model: RobertaForSequenceClassification,
             steps += 1
     
     # save model
-    model.save_pretrained("models/CodeBERT-solidifi")
+    model.save_pretrained("models/CodeBERT-solidifi_finetuned")
     return model
 
 
@@ -71,17 +77,17 @@ def evaluate(model, dataset, device):
     accs = []
     losses = []
     
-    for ids, labels in tqdm(dataset):
+    for ids, labels in dataset:
         ids = ids.to(device)
         labels = labels.to(device)
         with torch.no_grad(), torch.autocast(device):
             outputs = model(input_ids=ids, labels=labels)
             # 1. Compute the loss
             loss_val = outputs[0]
-            # 2. Compute the accuracy
-            accuracy = (outputs[1].argmax(dim=1) == labels).float().mean()
-            accs.append(accuracy)
-            losses.append(loss_val)
+        # 2. Compute the accuracy
+        accuracy = (outputs[1].argmax(dim=1) == labels).float().mean()
+        accs.append(accuracy)
+        losses.append(loss_val)
         
     # 3. Compute the average loss and accuracy
     loss_val = torch.tensor(losses).mean()
@@ -109,7 +115,7 @@ if __name__ == "__main__":
 
     print(f"Dataset length: {len(dataset)}")
     model = RobertaForSequenceClassification.from_pretrained("microsoft/codebert-base", num_labels=len(dataset.labels.keys())).to(DEVICE)
-    
+    print(len(dataset.labels.keys()))
     # Split the dataset into train and validation
     train_size = int(0.9 * len(dataset))
     val_size = len(dataset) - train_size
@@ -120,16 +126,29 @@ if __name__ == "__main__":
     val_dataloader = torch.utils.data.DataLoader(val_dataset, batch_size=128, shuffle=False, collate_fn=collate)
     
     # Train the model
-    model = train_model(model, tokenizer, train_dataloader, val_dataloader, 1, 1e-4, 500, DEVICE)
+    model = train_model(
+        model, 
+        tokenizer, 
+        train_dataloader, 
+        val_dataloader, 
+        3,
+        c_learning_rate=1e-3, 
+        r_learning_rate=1e-6,
+        n_steps_to_val=500,
+        device=DEVICE
+    )
 
 # %%
     # Test one
-    with open('./sample.sol', 'r') as file:
-        prompt_buggy_code = file.read()
-    test_input_ids = tokenizer.encode(prompt_buggy_code)
-    i = 0
-    prompts = []
-    while i < len(test_input_ids):
-        prompts.append(test_input_ids[i:i+512])
-        i += 512
-    print(model(prompts))
+
+    # model = RobertaForSequenceClassification.from_pretrained("models/CodeBERT-solidifi").to(DEVICE)
+    # with open('./sample.sol', 'r') as file:
+    #     prompt_buggy_code = file.read()
+    # test_input_ids = tokenizer.encode(prompt_buggy_code)
+    # i = 0
+    # prompts = []
+    # while i < len(test_input_ids):
+    #     prompts.append(test_input_ids[i:i+512])
+    #     i += 512
+    # prompts = torch.nn.utils.rnn.pad_sequence([torch.tensor(x) for x in prompts], batch_first=True, padding_value=1)
+    # print(model(prompts.to(DEVICE)).logits.argmax(dim=1))
