@@ -8,3 +8,5 @@
 /cache/
 */cache/
 /src/models
+*.out
+*/*.out
