@@ -4,6 +4,8 @@ os.environ['HF_HOME'] = './cache'
 from transformers import RobertaTokenizer, RobertaForSequenceClassification
 from process_data import SmardityDataset
 
+from sklearn.metrics import f1_score, recall_score, precision_score, accuracy_score
+
 from tqdm import tqdm
 
 def train_model(model: RobertaForSequenceClassification, 
@@ -69,31 +71,38 @@ def collate(examples):
     return input_ids, labels
 
 
-def evaluate(model, dataset, device):
+def evaluate(model, dataset:SmardityDataset, device):
     '''
     Evaluate the model on the dataset
     '''
+    # TODO: Precision, Recall, F1
     model.eval()
-    accs = []
     losses = []
+    y_true = []
+    y_pred = []
     
     for ids, labels in dataset:
         ids = ids.to(device)
         labels = labels.to(device)
+        y_true.extend(labels.cpu().numpy().tolist())
         with torch.no_grad(), torch.autocast(device):
             outputs = model(input_ids=ids, labels=labels)
             # 1. Compute the loss
             loss_val = outputs[0]
-        # 2. Compute the accuracy
-        accuracy = (outputs[1].argmax(dim=1) == labels).float().mean()
-        accs.append(accuracy)
+        y_pred.extend(outputs[1].argmax(dim=1).cpu().numpy().tolist())
         losses.append(loss_val)
-        
-    # 3. Compute the average loss and accuracy
+    # 2. Compute the accuracy
+    acc = accuracy_score(y_true, y_pred)
+    # 3. Precision
+    precision = precision_score(y_true, y_pred, average='macro')
+    # 4. Recall
+    recall = recall_score(y_true, y_pred, average='macro')
+    # 5. F1
+    f1 = f1_score(y_true, y_pred, average='macro')
+    # 3. Compute the average loss
     loss_val = torch.tensor(losses).mean()
-    acc = torch.tensor(accs).mean()
-    # 4. Log the loss and accuracy
-    print(f"Loss: {loss_val}, Accuracy: {acc}")
+    # 4. Log the metrics
+    print(f"Loss: {loss_val}, Accuracy: {acc}, Precision: {precision}, Recall: {recall}, F1: {f1}")
 
 
 if __name__ == "__main__":
@@ -122,7 +131,7 @@ if __name__ == "__main__":
     train_dataset, val_dataset = torch.utils.data.random_split(dataset, [train_size, val_size])
     
     # Create dataloaders
-    train_dataloader = torch.utils.data.DataLoader(train_dataset, batch_size=64, shuffle=True, collate_fn=collate)
+    train_dataloader = torch.utils.data.DataLoader(train_dataset, batch_size=32, shuffle=True, collate_fn=collate)
     val_dataloader = torch.utils.data.DataLoader(val_dataset, batch_size=128, shuffle=False, collate_fn=collate)
     
     # Train the model
@@ -131,9 +140,9 @@ if __name__ == "__main__":
         tokenizer, 
         train_dataloader, 
         val_dataloader, 
-        3,
+        10,
         c_learning_rate=1e-3, 
-        r_learning_rate=1e-6,
+        r_learning_rate=5e-6,
         n_steps_to_val=500,
         device=DEVICE
     )
