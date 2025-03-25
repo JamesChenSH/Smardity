@@ -93,7 +93,7 @@ def evaluate(model, dataset, device):
 if __name__ == "__main__":
     
     DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-    DATA_PATH = "../data"
+    DATA_PATH = "../data/train"
 
     torch.manual_seed(0)
     # DEVICE = 'mps'        # for mac only
