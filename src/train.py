@@ -1,6 +1,7 @@
 import os, torch
 os.environ['HF_HOME'] = './cache'
 
+import torch.utils.data.dataloader
 from transformers import RobertaTokenizer, RobertaForSequenceClassification
 from process_data import SmardityDataset
 
@@ -71,7 +72,7 @@ def collate(examples):
     return input_ids, labels
 
 
-def evaluate(model, dataset:SmardityDataset, device):
+def evaluate(model, dataloader:torch.utils.data.dataloader.DataLoader, device):
     '''
     Evaluate the model on the dataset
     '''
@@ -81,7 +82,7 @@ def evaluate(model, dataset:SmardityDataset, device):
     y_true = []
     y_pred = []
     
-    for ids, labels in dataset:
+    for ids, labels in dataloader:
         ids = ids.to(device)
         labels = labels.to(device)
         y_true.extend(labels.cpu().numpy().tolist())
@@ -91,18 +92,49 @@ def evaluate(model, dataset:SmardityDataset, device):
             loss_val = outputs[0]
         y_pred.extend(outputs[1].argmax(dim=1).cpu().numpy().tolist())
         losses.append(loss_val)
-    # 2. Compute the accuracy
+    
+    # 1. Get class names 
+    class_names = dataloader.dataset.labels.keys()    
+    val_to_class = {v: k for k, v in dataloader.dataset.labels.items()}
+    
+    # 2. overall metrics
+    # Accuracy
     acc = accuracy_score(y_true, y_pred)
-    # 3. Precision
-    precision = precision_score(y_true, y_pred, average='macro')
-    # 4. Recall
-    recall = recall_score(y_true, y_pred, average='macro')
-    # 5. F1
-    f1 = f1_score(y_true, y_pred, average='macro')
+    # Precision
+    precision = precision_score(y_true, y_pred, average='macro', zero_division=0)
+    # Recall
+    recall = recall_score(y_true, y_pred, average='macro', zero_division=0)
+    # F1
+    f1 = f1_score(y_true, y_pred, average='macro', zero_division=0)
+    
+    # over each class
+    accs = []
+    precisions = []
+    recalls = []
+    f1s = []
+    classes = []
+    for i in range(len(class_names)):
+        classes.append(val_to_class[i])
+        
+        y_pred_class = [1 if y == i else 0 for y in y_pred]
+        y_true_class = [1 if y == i else 0 for y in y_true]
+        
+        accs.append(accuracy_score(y_true_class, y_pred_class)*100)
+        precisions.append(precision_score(y_true_class, y_pred_class, zero_division=0)*100)
+        recalls.append(recall_score(y_true_class, y_pred_class, zero_division=0)*100)
+        f1s.append(f1_score(y_true_class, y_pred_class, zero_division=0)*100)
+    
+    
     # 3. Compute the average loss
     loss_val = torch.tensor(losses).mean()
     # 4. Log the metrics
     print(f"Loss: {loss_val}, Accuracy: {acc}, Precision: {precision}, Recall: {recall}, F1: {f1}")
+    # Print the metrics for each class in a table
+    print(f"| {'Class':<20} | {'Accuracy':<15} | {'Precision':<15} | {'Recall':<15} | {'F1':<15} |")
+    print(f"| {'-'*20} | {'-'*15} | {'-'*15} | {'-'*15} | {'-'*15} |")
+    for i in range(len(class_names)):
+        print(f"| {classes[i]:<20} | {accs[i]:<15.4f} | {precisions[i]:<15.4f} | {recalls[i]:<15.4f} | {f1s[i]:<15.4f} |")
+    return loss_val, acc, precision, recall, f1
 
 
 if __name__ == "__main__":

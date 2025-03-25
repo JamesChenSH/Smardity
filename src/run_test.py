@@ -12,7 +12,7 @@ if __name__ == '__main__':
     # Load the tokenizer
     tokenizer = RobertaTokenizer.from_pretrained("microsoft/codebert-base")
     # Load the model
-    model = RobertaForSequenceClassification.from_pretrained("models/CodeBERT-solidifi").to('cuda')
+    model = RobertaForSequenceClassification.from_pretrained("models/CodeBERT-solidifi_finetuned").to('cuda')
     # Load the dataset
     if os.path.exists(DATA_PATH + "/dataset.pt"):
         dataset = torch.load(DATA_PATH + "/dataset.pt", weights_only=False)
