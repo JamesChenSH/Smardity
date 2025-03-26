@@ -6,7 +6,7 @@ from process_data import SmardityDataset
 
 from train import evaluate, collate
 
-DATA_PATH = "data/test"    # TODO: may need to update this to match your local env
+DATA_PATH = "../data/test"    # TODO: may need to update this to match your local env
 if torch.cuda.is_available():
     DEVICE = "cuda"
 elif hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
@@ -27,5 +27,6 @@ if __name__ == '__main__':
         torch.save(dataset, DATA_PATH + "/dataset.pt")
     # Create the dataloader
     dataloader = torch.utils.data.DataLoader(dataset, batch_size=32, collate_fn=collate)
+    print(len(dataloader.dataset))
     # Evaluate the model
-    evaluate(model, dataloader, DEVICE)
+    evaluate(model, dataloader, dataset.labels, DEVICE)

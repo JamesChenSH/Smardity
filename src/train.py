@@ -8,6 +8,7 @@ from sklearn.metrics import classification_report
 from sklearn.metrics import f1_score, recall_score, precision_score, accuracy_score
 from tqdm import tqdm
 
+
 def train_model(model: RobertaForSequenceClassification, 
                 tokenizer: RobertaTokenizer, 
                 train_dataloader, 
@@ -16,7 +17,8 @@ def train_model(model: RobertaForSequenceClassification,
                 c_learning_rate,
                 r_learning_rate,
                 n_steps_to_val,
-                device):
+                output_path="models/CodeBERT-solidifi",
+                device="cuda"):
     '''
     Fine tune the model on the dataset
     '''
@@ -47,12 +49,13 @@ def train_model(model: RobertaForSequenceClassification,
             loss_val.backward()
             optimizer.step()
             if steps % n_steps_to_val == 0:
-                evaluate(model, val_dataloader, device)
+                evaluate(model, val_dataloader, device=device)
                 model.train()
             steps += 1
     
-    model.save_pretrained("models/CodeBERT-solidifi_finetuned")
+    model.save_pretrained(output_path)
     return model
+
 
 def collate(examples):
     '''
@@ -68,7 +71,8 @@ def collate(examples):
     attention_mask = (input_ids != pad_token_id).long()
     return input_ids, attention_mask, labels
 
-def evaluate(model, dataloader: torch.utils.data.dataloader.DataLoader, device):
+
+def evaluate(model, dataloader: torch.utils.data.dataloader.DataLoader, label_dict=None, device="cuda"):
     '''
     Evaluate the model on the dataset
     '''
@@ -90,60 +94,52 @@ def evaluate(model, dataloader: torch.utils.data.dataloader.DataLoader, device):
     
     # Compute average loss
     loss_val = sum(losses) / len(losses)
-    
-    # Get class names
-    class_names = list(dataloader.dataset.labels.keys())
-    val_to_class = {v: k for k, v in dataloader.dataset.labels.items()}
-    
     # Overall metrics
-    acc = accuracy_score(y_true, y_pred)
-    precision = precision_score(y_true, y_pred, average='macro', zero_division=0)
-    recall = recall_score(y_true, y_pred, average='macro', zero_division=0)
-    f1 = f1_score(y_true, y_pred, average='macro', zero_division=0)
-    
-    
-    
-    
-    
-    # Lists to store metrics
-    accs = []
-    precisions = []
-    recalls = []
-    f1s = []
-    classes = []
-
-    # computing per class metrics
-    for i in range(len(class_names)):
-        classes.append(val_to_class[i])
-        
-        # Get indices where y_true equals the current class i
-        true_indices = [idx for idx, y in enumerate(y_true) if y == i]
-        
-        y_true_class = [1 for idx in true_indices]
-        y_pred_class = [1 if y_pred[idx] == i else 0 for idx in true_indices]
-        
-        accs.append(accuracy_score(y_true_class, y_pred_class)*100)
-        
-    for i in range(len(class_names)):
-        y_pred_class = [1 if y == i else 0 for y in y_pred]
-        y_true_class = [1 if y == i else 0 for y in y_true]
-        
-        precisions.append(precision_score(y_true_class, y_pred_class, zero_division=0)*100)
-        recalls.append(recall_score(y_true_class, y_pred_class, zero_division=0)*100)
-        f1s.append(f1_score(y_true_class, y_pred_class, zero_division=0)*100)
-        
-        
-    
-    # 3. Compute the average loss
+    acc = accuracy_score(y_true, y_pred) * 100
+    precision = precision_score(y_true, y_pred, average='macro', zero_division=0) * 100
+    recall = recall_score(y_true, y_pred, average='macro', zero_division=0) * 100
+    f1 = f1_score(y_true, y_pred, average='macro', zero_division=0) * 100
+    # Compute the average loss
     loss_val = torch.tensor(losses).mean()
-    # 4. Log the metrics
+    # Log the metrics
     print(f"Loss: {loss_val}, Accuracy: {acc}, Precision: {precision}, Recall: {recall}, F1: {f1}")
-    # Print the metrics for each class in a table
-    print(f"| {'Class':<20} | {'Accuracy':<15} | {'Precision':<15} | {'Recall':<15} | {'F1':<15} |")
-    print(f"| {'-'*20} | {'-'*15} | {'-'*15} | {'-'*15} | {'-'*15} |")
-    for i in range(len(class_names)):
-        print(f"| {classes[i]:<20} | {accs[i]:<15.4f} | {precisions[i]:<15.4f} | {recalls[i]:<15.4f} | {f1s[i]:<15.4f} |")
-    return loss_val, acc, precision, recall, f1
+    
+    # Test time only metrics when label_dict is given
+    if label_dict is not None:
+        # Get class names
+        val_to_class = {v: k for k, v in label_dict.items()}
+        class_names = [val_to_class[i] for i in range(len(list(val_to_class.keys())))]
+        report = classification_report(y_true, y_pred, labels=range(len(class_names)), target_names=class_names, output_dict=True)
+        
+        # Lists to store metrics
+        accs = []
+        precisions = []
+        recalls = []
+        f1s = []
+        classes = []
+
+        # computing per class metrics
+        for i in range(len(class_names)):
+            classes.append(val_to_class[i])
+            
+            # Get indices where y_true equals the current class i
+            true_indices = [idx for idx, y in enumerate(y_true) if y == i]
+            
+            y_true_class = [1 for idx in true_indices]
+            y_pred_class = [1 if y_pred[idx] == i else 0 for idx in true_indices]
+            
+            accs.append(accuracy_score(y_true_class, y_pred_class)*100)
+            precisions.append(report[class_names[i]]['precision']*100)
+            recalls.append(report[class_names[i]]['recall']*100)
+            f1s.append(report[class_names[i]]['f1-score']*100)        
+            
+        # Print the metrics for each class in a table
+        print(f"| {'Class':<20} | {'Accuracy':<15} | {'Precision':<15} | {'Recall':<15} | {'F1':<15} |")
+        print(f"| {'-'*20} | {'-'*15} | {'-'*15} | {'-'*15} | {'-'*15} |")
+        for i in range(len(class_names)):
+            print(f"| {classes[i]:<20} | {accs[i]:<15.4f} | {precisions[i]:<15.4f} | {recalls[i]:<15.4f} | {f1s[i]:<15.4f} |")
+    return loss_val
+
 
 if __name__ == "__main__":
     if torch.cuda.is_available():
@@ -160,18 +156,24 @@ if __name__ == "__main__":
     tokenizer = RobertaTokenizer.from_pretrained("microsoft/codebert-base")
     
     # Load or create dataset
-    if os.path.exists(DATA_PATH + "/dataset.pt"):
-        dataset = torch.load(DATA_PATH + "/dataset.pt", weights_only=False)
+    # if os.path.exists(DATA_PATH + "/dataset.pt"):
+    #     dataset = torch.load(DATA_PATH + "/dataset.pt", weights_only=False)
+    # else:
+    #     dataset = SmardityDataset(DATA_PATH, tokenizer)
+    #     torch.save(dataset, DATA_PATH + "/dataset.pt")
+
+    DATA_JSON = "../data/train/clean_labeled_contracts.json"
+    if os.path.exists(DATA_PATH + "/dataset_uncomment.pt"):
+        dataset = torch.load(DATA_PATH + "/dataset_uncomment.pt", weights_only=False)
     else:
-        dataset = SmardityDataset(DATA_PATH, tokenizer)
-        torch.save(dataset, DATA_PATH + "/dataset.pt")
+        dataset = SmardityDataset(DATA_JSON, tokenizer)
+        torch.save(dataset, DATA_PATH + "/dataset_uncomment.pt")
 
     print(f"Dataset length: {len(dataset)}")
     model = RobertaForSequenceClassification.from_pretrained(
         "microsoft/codebert-base", 
         num_labels=len(dataset.labels.keys())
     ).to(DEVICE)
-    print(len(dataset.labels.keys()))
     
     # Split dataset
     train_size = int(0.9 * len(dataset))
@@ -183,13 +185,13 @@ if __name__ == "__main__":
         train_dataset, 
         batch_size=32, 
         shuffle=True, 
-        collate_fn=lambda x: collate(x, tokenizer)
+        collate_fn=collate
     )
     val_dataloader = torch.utils.data.DataLoader(
         val_dataset, 
         batch_size=128, 
         shuffle=False, 
-        collate_fn=lambda x: collate(x, tokenizer)
+        collate_fn=collate
     )
     
     # Train the model
@@ -198,10 +200,11 @@ if __name__ == "__main__":
         tokenizer, 
         train_dataloader, 
         val_dataloader, 
-        num_epochs=3,
+        num_epochs=10,
         c_learning_rate=1e-3, 
         r_learning_rate=5e-6,
-        n_steps_to_val=500,
+        n_steps_to_val=5756,
+        output_path="models/CodeBERT-solidifi_uncomment",
         device=DEVICE
     )
 

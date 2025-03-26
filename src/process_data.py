@@ -45,6 +45,24 @@ class SmardityDataset(Dataset):
         self.examples = []
         self.labels = {}
         # Get the list of directories in the dataset_path
+        if '.json' in dataset_path:
+            # JSON version
+            import json
+            with open(dataset_path, 'r') as file:
+                data = json.load(file)
+            for d in tqdm(data):
+                contract = d['contract']
+                cls_name = d['type']
+                if cls_name not in self.labels:
+                    self.labels[cls_name] = len(self.labels)
+                tokenized_code = tokenizer.encode(contract)
+                cur_idx = 0
+                while cur_idx < len(tokenized_code):
+                    self.examples.append((tokenized_code[cur_idx:cur_idx+512], self.labels[cls_name]))
+                    cur_idx += 512
+
+            return
+
         dirs = os.listdir(dataset_path)
         dirs.sort()
         print(dataset_path, dirs)
