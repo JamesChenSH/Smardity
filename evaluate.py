@@ -6,7 +6,7 @@ from process_data import SmardityDataset, collate
 from sklearn.metrics import classification_report
 from sklearn.metrics import f1_score, recall_score, precision_score, accuracy_score
 
-DATA_PATH = "../data/test"    # TODO: may need to update this to match your local env
+DATA_PATH = "./data/test"    # TODO: may need to update this to match your local env
 if torch.cuda.is_available():
     DEVICE = "cuda"
 elif hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
@@ -88,7 +88,7 @@ if __name__ == '__main__':
     # Load the tokenizer
     tokenizer = RobertaTokenizer.from_pretrained("microsoft/codebert-base")
     # Load the model
-    model = RobertaForSequenceClassification.from_pretrained("models/CodeBERT-solidifi_finetuned").to(DEVICE)    # TODO: use fine-tuned model instead
+    model = RobertaForSequenceClassification.from_pretrained("models/CodeBERT-solidifi_uncomment").to(DEVICE)    # TODO: use fine-tuned model instead
     # Load the dataset
     if os.path.exists(DATA_PATH + "/dataset.pt"):
         dataset = torch.load(DATA_PATH + "/dataset.pt", weights_only=False)

@@ -77,7 +77,7 @@ if __name__ == "__main__":
     #     dataset = SmardityDataset(DATA_PATH, tokenizer)
     #     torch.save(dataset, DATA_PATH + "/dataset.pt")
 
-    DATA_JSON = "../data/train/clean_labeled_contracts.json"
+    DATA_JSON = "./data/train/clean_labeled_contracts.json"
     if os.path.exists(DATA_PATH + "/dataset_uncomment.pt"):
         dataset = torch.load(DATA_PATH + "/dataset_uncomment.pt", weights_only=False)
     else:
@@ -115,7 +115,7 @@ if __name__ == "__main__":
         tokenizer, 
         train_dataloader, 
         val_dataloader, 
-        num_epochs=10,
+        num_epochs=3,
         c_learning_rate=1e-3, 
         r_learning_rate=5e-6,
         n_steps_to_val=2000,

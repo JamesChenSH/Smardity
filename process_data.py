@@ -73,7 +73,7 @@ class SmardityDataset(Dataset):
                 cls_names.append(cls_name)
                 cur_idx = 0
                 while cur_idx < len(tokenized_code):
-                    self.examples.append([tokenized_code[cur_idx:cur_idx+512], cls_name])
+                    self.examples.append([tokenized_code[cur_idx:cur_idx+512], cls_name.upper])
                     cur_idx += 512
             # Construct label dict
             cls_names = list(set(cls_names))
