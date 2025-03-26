@@ -118,7 +118,7 @@ if __name__ == "__main__":
         num_epochs=10,
         c_learning_rate=1e-3, 
         r_learning_rate=5e-6,
-        n_steps_to_val=100,
+        n_steps_to_val=2000,
         output_path="models/CodeBERT-solidifi_uncomment",
         device=DEVICE
     )

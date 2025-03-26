@@ -97,6 +97,6 @@ if __name__ == '__main__':
         torch.save(dataset, DATA_PATH + "/dataset.pt")
     # Create the dataloader
     dataloader = torch.utils.data.DataLoader(dataset, batch_size=32, collate_fn=collate)
-    print(len(dataloader.dataset))
+    print(len(dataloader.dataset), dataloader.dataset.labels)
     # Evaluate the model
     evaluate(model, dataloader, dataset.labels, DEVICE)
