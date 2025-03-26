@@ -68,47 +68,48 @@ class SmardityDataset(Dataset):
                 data = json.load(file)
             for d in tqdm(data):
                 contract = d['contract']
-                cls_name = d['type']
+                cls_name = d['type'].upper()
                 tokenized_code = tokenizer.encode(contract)
                 cls_names.append(cls_name)
                 cur_idx = 0
                 while cur_idx < len(tokenized_code):
                     self.examples.append([tokenized_code[cur_idx:cur_idx+512], cls_name])
                     cur_idx += 512
-            # Construct label dict
-            cls_names = list(set(cls_names))
-            cls_names.sort()
-            self.labels = {cls_name: i for i, cls_name in enumerate(cls_names)}
-            for example in self.examples:
-                example[1] = self.labels[example[1]]
-            return
-
-        dirs = os.listdir(dataset_path)
-        dirs.sort()
-        print(dataset_path, dirs)
-        
-        # Assign each directory a label
-        for i, d in enumerate(dirs):
-            if d == '.DS_Store' or '.pt' in d:
-                continue
-            print(f"Parsing directory: {d}")
-            self.labels[d] = i
-            # Get the list of files in the directory
-            files = os.listdir(os.path.join(dataset_path, d))
-            # Read each file as text and add it to the examples list
-            for f in tqdm(files):
-                if f.endswith('.sol'):
-                    with open(os.path.join(dataset_path, d, f), 'r') as file:
-                        raw_code = file.read()
-                    # Tokenize the code
-                    tokenized_code = tokenizer.encode(raw_code) 
-                    # Split the tokenized code into chunks of 512 tokens   
-                    cur_idx = 0
-                    while cur_idx < len(tokenized_code):
-                        self.examples.append((tokenized_code[cur_idx:cur_idx+512], i))
-                        cur_idx += 512
-                else:
+        else:
+            dirs = os.listdir(dataset_path)
+            print(dataset_path, dirs)
+            
+            # Assign each directory a label
+            for i, d in enumerate(dirs):
+                if d == '.DS_Store' or '.pt' in d:
                     continue
+                print(f"Parsing directory: {d}")
+                cls_name = d.upper()
+                cls_names.append(cls_name)
+                # Get the list of files in the directory
+                files = os.listdir(os.path.join(dataset_path, d))
+                # Read each file as text and add it to the examples list
+                for f in tqdm(files):
+                    if f.endswith('.sol'):
+                        with open(os.path.join(dataset_path, d, f), 'r') as file:
+                            raw_code = file.read()
+                        # Tokenize the code
+                        tokenized_code = tokenizer.encode(raw_code) 
+                        # Split the tokenized code into chunks of 512 tokens   
+                        cur_idx = 0
+                        while cur_idx < len(tokenized_code):
+                            self.examples.append((tokenized_code[cur_idx:cur_idx+512], cls_name))
+                            cur_idx += 512
+                    else:
+                        continue
+             
+        # Construct label dict   
+        cls_names = list(set(cls_names))
+        cls_names.sort()
+        self.labels = {cls_name: i for i, cls_name in enumerate(cls_names)}
+        for example in self.examples:
+            example[1] = self.labels[example[1]]
+        print(cls_names)
 
     def __len__(self):
         '''
