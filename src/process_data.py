@@ -1,10 +1,25 @@
 from torch.utils.data import Dataset
+import torch
 from tqdm import tqdm
 
 from typing import List, Tuple, Dict
 from transformers import RobertaTokenizer
 
 import os
+
+def collate(examples):
+    '''
+    Collate function to prepare batches with attention masks
+    '''
+    pad_token_id = 1
+    input_ids = torch.nn.utils.rnn.pad_sequence(
+        [torch.tensor(x[0]) for x in examples], 
+        batch_first=True, 
+        padding_value=pad_token_id
+    )
+    labels = torch.tensor([x[1] for x in examples])
+    attention_mask = (input_ids != pad_token_id).long()
+    return input_ids, attention_mask, labels
 
 class SmardityDataset(Dataset):
     '''
