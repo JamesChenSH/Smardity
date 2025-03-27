@@ -73,7 +73,7 @@ class SmardityDataset(Dataset):
                 cls_names.append(cls_name)
                 cur_idx = 0
                 while cur_idx < len(tokenized_code):
-                    self.examples.append([tokenized_code[cur_idx:cur_idx+512], cls_name.upper])
+                    self.examples.append([tokenized_code[cur_idx:cur_idx+512], cls_name])
                     cur_idx += 512
         else:
             dirs = os.listdir(dataset_path)
@@ -98,7 +98,7 @@ class SmardityDataset(Dataset):
                         # Split the tokenized code into chunks of 512 tokens   
                         cur_idx = 0
                         while cur_idx < len(tokenized_code):
-                            self.examples.append((tokenized_code[cur_idx:cur_idx+512], cls_name))
+                            self.examples.append([tokenized_code[cur_idx:cur_idx+512], cls_name])
                             cur_idx += 512
                     else:
                         continue
@@ -109,7 +109,6 @@ class SmardityDataset(Dataset):
         self.labels = {cls_name: i for i, cls_name in enumerate(cls_names)}
         for example in self.examples:
             example[1] = self.labels[example[1]]
-        print(cls_names)
 
     def __len__(self):
         '''

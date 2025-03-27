@@ -35,7 +35,7 @@ def train_model(model: RobertaForSequenceClassification,
     # Training loop
     steps = 1
     for epoch in range(num_epochs):
-        iterator_obj = tqdm(train_dataloader)
+        iterator_obj = train_dataloader
         for ids, attention_mask, labels in iterator_obj:
             ids = ids.to(device)
             attention_mask = attention_mask.to(device)
@@ -44,15 +44,19 @@ def train_model(model: RobertaForSequenceClassification,
             with torch.autocast(device):
                 outputs = model(input_ids=ids, attention_mask=attention_mask, labels=labels)
             loss_val = outputs[0]
-            iterator_obj.set_description(f"Epoch {epoch+1}/{num_epochs}, Loss: {loss_val.item():.4f}")
+            if isinstance(iterator_obj, tqdm):
+                iterator_obj.set_description(f"Epoch {epoch+1}/{num_epochs}, Loss: {loss_val.item():.4f}")
             loss_val.backward()
             optimizer.step()
             if steps % n_steps_to_val == 0:
+                print("Validation at step: {}".format(steps))
                 evaluate(model, val_dataloader, device=device)
                 model.train()
             steps += 1
+        
     
-    model.save_pretrained(output_path)
+    model_save_path = os.path.join(output_path, f"CodeBERT-solidifi_{num_epochs}_epoch_{c_learning_rate}_cls_lr_{r_learning_rate}_r_lr")
+    model.save_pretrained(model_save_path)
     return model
 
 
@@ -64,7 +68,7 @@ if __name__ == "__main__":
     else:
         DEVICE = "cpu"
         
-    DATA_PATH = "../data/train"
+    DATA_PATH = "./data/train"
     torch.manual_seed(0)
     
     # Load tokenizer and model
@@ -77,7 +81,7 @@ if __name__ == "__main__":
     #     dataset = SmardityDataset(DATA_PATH, tokenizer)
     #     torch.save(dataset, DATA_PATH + "/dataset.pt")
 
-    DATA_JSON = "./data/train/clean_labeled_contracts.json"
+    DATA_JSON = DATA_PATH + "/clean_labeled_contracts.json"
     if os.path.exists(DATA_PATH + "/dataset_uncomment.pt"):
         dataset = torch.load(DATA_PATH + "/dataset_uncomment.pt", weights_only=False)
     else:
@@ -89,6 +93,7 @@ if __name__ == "__main__":
         "microsoft/codebert-base", 
         num_labels=len(dataset.labels.keys())
     ).to(DEVICE)
+    print(f"Model initialized with {len(dataset.labels.keys())} labels")
     
     # Split dataset
     train_size = int(0.9 * len(dataset))
@@ -115,13 +120,15 @@ if __name__ == "__main__":
         tokenizer, 
         train_dataloader, 
         val_dataloader, 
-        num_epochs=3,
+        num_epochs=15,
         c_learning_rate=1e-3, 
         r_learning_rate=5e-6,
         n_steps_to_val=2000,
-        output_path="models/CodeBERT-solidifi_uncomment",
+        output_path="models/",
         device=DEVICE
     )
+    
+    evaluate(model, val_dataloader, label_dict=dataset.labels, device=DEVICE)
 
 # %%
     # Test one

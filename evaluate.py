@@ -15,6 +15,18 @@ else:
     DEVICE = "cpu"
 
 
+REF_LABELS = {
+    "NO-VULNERABILITIES": 0,
+    "OVERFLOW-UNDERFLOW": 1,
+    "RE-ENTRANCY": 2,
+    "TIMESTAMP-DEPENDENCY": 3,
+    "TOD": 4,
+    "TX.ORIGIN": 5,
+    "UNCHECKED-SEND": 6,
+    "UNHANDLED-EXCEPTIONS": 7,
+}
+
+
 def evaluate(model, dataloader: torch.utils.data.dataloader.DataLoader, label_dict=None, device="cuda"):
     '''
     Evaluate the model on the dataset
@@ -45,7 +57,7 @@ def evaluate(model, dataloader: torch.utils.data.dataloader.DataLoader, label_di
     # Compute the average loss
     loss_val = torch.tensor(losses).mean()
     # Log the metrics
-    print(f"Loss: {loss_val}, Accuracy: {acc}, Precision: {precision}, Recall: {recall}, F1: {f1}")
+    print(f"Loss: {loss_val}, Accuracy: {acc}, Precision: {precision}, Recall: {recall}, F1: {f1}", flush=True)
     
     # Test time only metrics when label_dict is given
     if label_dict is not None:
@@ -84,19 +96,72 @@ def evaluate(model, dataloader: torch.utils.data.dataloader.DataLoader, label_di
     return loss_val
 
 
+def eval_one(model, tokenizer, contract):
+    '''
+    Evaluate a single contract
+    '''
+    model.eval()
+    tokenized_code = tokenizer.encode(contract)
+    prompts = []
+    cur_idx = 0
+    while cur_idx < len(tokenized_code):
+        prompts.append(tokenized_code[cur_idx:cur_idx+512])
+        cur_idx += 512
+    prompts = torch.nn.utils.rnn.pad_sequence([torch.tensor(x) for x in prompts], batch_first=True, padding_value=1)
+    with torch.no_grad():
+        outputs = model(input_ids=prompts.to(DEVICE))
+        logits = outputs.logits
+        predicted_class = logits.argmax(dim=1)
+        
+    from collections import Counter
+    c = Counter(predicted_class.cpu().numpy().tolist())
+    return c.most_common(1)[0][0]
+
+
 if __name__ == '__main__':
     # Load the tokenizer
     tokenizer = RobertaTokenizer.from_pretrained("microsoft/codebert-base")
     # Load the model
     model = RobertaForSequenceClassification.from_pretrained("models/CodeBERT-solidifi_uncomment").to(DEVICE)    # TODO: use fine-tuned model instead
     # Load the dataset
-    if os.path.exists(DATA_PATH + "/dataset.pt"):
-        dataset = torch.load(DATA_PATH + "/dataset.pt", weights_only=False)
+    # if os.path.exists(DATA_PATH + "/dataset.pt"):
+    #     dataset = torch.load(DATA_PATH + "/dataset.pt", weights_only=False)
+    # else:
+    #     dataset = SmardityDataset(DATA_PATH, tokenizer)
+    #     torch.save(dataset, DATA_PATH + "/dataset.pt")
+        
+    DATA_JSON = "./data/test/test_data.json"
+    if os.path.exists(DATA_PATH + "/dataset_uncomment.pt"):
+        dataset = torch.load(DATA_PATH + "/dataset_uncomment.pt", weights_only=False)
     else:
-        dataset = SmardityDataset(DATA_PATH, tokenizer)
-        torch.save(dataset, DATA_PATH + "/dataset.pt")
-    # Create the dataloader
-    dataloader = torch.utils.data.DataLoader(dataset, batch_size=32, collate_fn=collate)
-    print(len(dataloader.dataset), dataloader.dataset.labels)
-    # Evaluate the model
-    evaluate(model, dataloader, dataset.labels, DEVICE)
+        dataset = SmardityDataset(DATA_JSON, tokenizer)
+        torch.save(dataset, DATA_PATH + "/dataset_uncomment.pt")
+    print("Test dataset has {} labels".format(len(dataset.labels.keys())))
+        
+    # # Create the dataloader
+    # dataloader = torch.utils.data.DataLoader(dataset, batch_size=32, collate_fn=collate)
+    # print(len(dataloader.dataset), dataloader.dataset.labels)
+    # # Evaluate the model
+    # evaluate(model, dataloader, dataset.labels, DEVICE)
+    
+    import json
+    with open(DATA_JSON, 'r') as file:
+        data = json.load(file)
+    idx2label = {v: k for k, v in REF_LABELS.items()}
+    table = []
+    y_pred = []
+    y_true = []
+    from tqdm import tqdm
+    for d in tqdm(data):
+        contract = d['contract']
+        cls_name = d['type'].upper()
+        pred = eval_one(model, tokenizer, contract)
+        correct = REF_LABELS[cls_name] == pred
+        y_pred.append(idx2label[pred])
+        y_true.append(cls_name)
+        table.append([cls_name, idx2label[pred], correct])
+        # print(f"Predicted class: {label2idx[eval_one(model, tokenizer, contract)]}; True Class: {cls_name}, {'-' if pred == REF_LABELS[cls_name] else 'X'}")
+    from tabulate import tabulate
+    print(tabulate(table, headers=["True Class", "Predicted Class", "Correct"], tablefmt="github"))
+    print("Accuracy: ", accuracy_score(y_true, y_pred) * 100)
+    
