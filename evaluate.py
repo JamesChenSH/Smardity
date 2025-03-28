@@ -27,6 +27,8 @@ REF_LABELS = {
 }
 
 
+IDX2LB = {v: k for k, v in REF_LABELS.items()}
+
 def evaluate(model, dataloader: torch.utils.data.dataloader.DataLoader, label_dict=None, device="cuda"):
     '''
     Evaluate the model on the dataset
@@ -115,6 +117,7 @@ def eval_one(model, tokenizer, contract):
         
     from collections import Counter
     c = Counter(predicted_class.cpu().numpy().tolist())
+    print(predicted_class)
     return c.most_common(1)[0][0]
 
 
@@ -122,14 +125,20 @@ if __name__ == '__main__':
     # Load the tokenizer
     tokenizer = RobertaTokenizer.from_pretrained("microsoft/codebert-base")
     # Load the model
-    model = RobertaForSequenceClassification.from_pretrained("models/CodeBERT-solidifi_uncomment").to(DEVICE)    # TODO: use fine-tuned model instead
+    model = RobertaForSequenceClassification.from_pretrained("models/CodeBERT-solidifi_15_epoch_0.001_cls_lr_5e-06_r_lr").to(DEVICE)    # TODO: use fine-tuned model instead
     # Load the dataset
     # if os.path.exists(DATA_PATH + "/dataset.pt"):
     #     dataset = torch.load(DATA_PATH + "/dataset.pt", weights_only=False)
     # else:
     #     dataset = SmardityDataset(DATA_PATH, tokenizer)
     #     torch.save(dataset, DATA_PATH + "/dataset.pt")
-        
+    
+    with open('./examples/tmstmp_dep.sol', 'r') as f:
+        data = f.read()
+    # print(data)
+    print(IDX2LB[eval_one(model, tokenizer, data)])
+    exit(0)
+    
     DATA_JSON = "./data/test/test_data.json"
     if os.path.exists(DATA_PATH + "/dataset_uncomment.pt"):
         dataset = torch.load(DATA_PATH + "/dataset_uncomment.pt", weights_only=False)
@@ -138,7 +147,7 @@ if __name__ == '__main__':
         torch.save(dataset, DATA_PATH + "/dataset_uncomment.pt")
     print("Test dataset has {} labels".format(len(dataset.labels.keys())))
         
-    # # Create the dataloader
+    # Create the dataloader
     # dataloader = torch.utils.data.DataLoader(dataset, batch_size=32, collate_fn=collate)
     # print(len(dataloader.dataset), dataloader.dataset.labels)
     # # Evaluate the model
@@ -147,7 +156,6 @@ if __name__ == '__main__':
     import json
     with open(DATA_JSON, 'r') as file:
         data = json.load(file)
-    idx2label = {v: k for k, v in REF_LABELS.items()}
     table = []
     y_pred = []
     y_true = []
@@ -157,7 +165,7 @@ if __name__ == '__main__':
         cls_name = d['type'].upper()
         pred = eval_one(model, tokenizer, contract)
         correct = REF_LABELS[cls_name] == pred
-        y_pred.append(idx2label[pred])
+        y_pred.append(IDX2LB[pred])
         y_true.append(cls_name)
         table.append([cls_name, idx2label[pred], correct])
         # print(f"Predicted class: {label2idx[eval_one(model, tokenizer, contract)]}; True Class: {cls_name}, {'-' if pred == REF_LABELS[cls_name] else 'X'}")
