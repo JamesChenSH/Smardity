@@ -2,7 +2,7 @@ import torch, os
 
 os.environ['HF_HOME'] = './cache'
 from transformers import RobertaTokenizer, RobertaForSequenceClassification
-from process_data import SmardityDataset, collate
+from process_data import SmardityDataset, collate, REF_LABELS, IDX2LB
 from sklearn.metrics import classification_report
 from sklearn.metrics import f1_score, recall_score, precision_score, accuracy_score
 
@@ -14,20 +14,6 @@ elif hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
 else:
     DEVICE = "cpu"
 
-
-REF_LABELS = {
-    "NO-VULNERABILITIES": 0,
-    "OVERFLOW-UNDERFLOW": 1,
-    "RE-ENTRANCY": 2,
-    "TIMESTAMP-DEPENDENCY": 3,
-    "TOD": 4,
-    "TX.ORIGIN": 5,
-    "UNCHECKED-SEND": 6,
-    "UNHANDLED-EXCEPTIONS": 7,
-}
-
-
-IDX2LB = {v: k for k, v in REF_LABELS.items()}
 
 def evaluate(model, dataloader: torch.utils.data.dataloader.DataLoader, label_dict=None, device="cuda"):
     '''
@@ -117,8 +103,12 @@ def eval_one(model, tokenizer, contract):
         
     from collections import Counter
     c = Counter(predicted_class.cpu().numpy().tolist())
-    print(predicted_class)
-    return c.most_common(1)[0][0]
+    most_commons = c.most_common(2)
+    first = most_commons[0][0]
+    if first == 0 and most_commons[0][1] < len(predicted_class.cpu().numpy().tolist()):
+        return most_commons[1][0]
+
+    return first
 
 
 if __name__ == '__main__':
@@ -133,25 +123,28 @@ if __name__ == '__main__':
     #     dataset = SmardityDataset(DATA_PATH, tokenizer)
     #     torch.save(dataset, DATA_PATH + "/dataset.pt")
     
-    with open('./examples/tmstmp_dep.sol', 'r') as f:
-        data = f.read()
-    # print(data)
-    print(IDX2LB[eval_one(model, tokenizer, data)])
-    exit(0)
+    # with open('./examples/reentrancy_bonus.sol', 'r') as f:
+    #     data = f.read()
+    # print(IDX2LB[eval_one(model, tokenizer, data)])
+    # exit(0)
     
     DATA_JSON = "./data/test/test_data.json"
-    if os.path.exists(DATA_PATH + "/dataset_uncomment.pt"):
-        dataset = torch.load(DATA_PATH + "/dataset_uncomment.pt", weights_only=False)
+    DATA_JSON = "./data/test/smartbugs-curated_test_data.json"
+    
+    out_file = "/dataset_uncomment.pt"
+    out_file = "/smartbugs.pt"
+    if os.path.exists(DATA_PATH + out_file):
+        dataset = torch.load(DATA_PATH + out_file, weights_only=False)
     else:
         dataset = SmardityDataset(DATA_JSON, tokenizer)
-        torch.save(dataset, DATA_PATH + "/dataset_uncomment.pt")
+        torch.save(dataset, DATA_PATH + out_file)
     print("Test dataset has {} labels".format(len(dataset.labels.keys())))
         
     # Create the dataloader
-    # dataloader = torch.utils.data.DataLoader(dataset, batch_size=32, collate_fn=collate)
-    # print(len(dataloader.dataset), dataloader.dataset.labels)
-    # # Evaluate the model
-    # evaluate(model, dataloader, dataset.labels, DEVICE)
+    dataloader = torch.utils.data.DataLoader(dataset, batch_size=32, collate_fn=collate)
+    print(len(dataloader.dataset), dataloader.dataset.labels)
+    # Evaluate the model
+    evaluate(model, dataloader, dataset.labels, DEVICE)
     
     import json
     with open(DATA_JSON, 'r') as file:
@@ -167,7 +160,7 @@ if __name__ == '__main__':
         correct = REF_LABELS[cls_name] == pred
         y_pred.append(IDX2LB[pred])
         y_true.append(cls_name)
-        table.append([cls_name, idx2label[pred], correct])
+        table.append([cls_name, IDX2LB[pred], correct])
         # print(f"Predicted class: {label2idx[eval_one(model, tokenizer, contract)]}; True Class: {cls_name}, {'-' if pred == REF_LABELS[cls_name] else 'X'}")
     from tabulate import tabulate
     print(tabulate(table, headers=["True Class", "Predicted Class", "Correct"], tablefmt="github"))
