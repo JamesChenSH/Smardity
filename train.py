@@ -6,7 +6,7 @@ from transformers import RobertaTokenizer, RobertaForSequenceClassification
 from process_data import SmardityDataset, collate
 from evaluate import evaluate, collate
 from tqdm import tqdm
-
+from args import args_init, trainer_args
 
 def train_model(model: RobertaForSequenceClassification, 
                 tokenizer: RobertaTokenizer, 
@@ -54,8 +54,8 @@ def train_model(model: RobertaForSequenceClassification,
                 model.train()
             steps += 1
         
-    
-    model_save_path = os.path.join(output_path, f"CodeBERT-solidifi_{num_epochs}_epoch_{c_learning_rate}_cls_lr_{r_learning_rate}_r_lr")
+    import time
+    model_save_path = os.path.join(output_path, f"CodeBERT-solidifi_{num_epochs}_epoch_{c_learning_rate}_cls_lr_{r_learning_rate}_r_lr_{time.strftime('%Y-%m-%d_%H-%M-%S')}")
     model.save_pretrained(model_save_path)
     return model
 
@@ -80,13 +80,19 @@ if __name__ == "__main__":
     # else:
     #     dataset = SmardityDataset(DATA_PATH, tokenizer)
     #     torch.save(dataset, DATA_PATH + "/dataset.pt")
+    
+    argparser = args_init()
+    trainer_args(argparser)
+    args = argparser.parse_args()
 
-    DATA_JSON = DATA_PATH + "/clean_labeled_contracts.json"
-    if os.path.exists(DATA_PATH + "/dataset_uncomment.pt"):
-        dataset = torch.load(DATA_PATH + "/dataset_uncomment.pt", weights_only=False)
+    ds_json_name = args.dataset
+    ds_json_save = ds_json_name.split(".")[0] + "_uncomment.pt"
+    DATA_JSON = DATA_PATH + "/" + ds_json_name
+    if os.path.exists(DATA_PATH + "/" + ds_json_save):
+        dataset = torch.load(DATA_PATH + "/" + ds_json_save, weights_only=False)
     else:
         dataset = SmardityDataset(DATA_JSON, tokenizer)
-        torch.save(dataset, DATA_PATH + "/dataset_uncomment.pt")
+        torch.save(dataset, DATA_PATH + "/" + ds_json_save)
 
     print(f"Dataset length: {len(dataset)}")
     model = RobertaForSequenceClassification.from_pretrained(
@@ -120,9 +126,9 @@ if __name__ == "__main__":
         tokenizer, 
         train_dataloader, 
         val_dataloader, 
-        num_epochs=15,
-        c_learning_rate=1e-3, 
-        r_learning_rate=5e-6,
+        num_epochs=args.n_epochs,
+        c_learning_rate=args.c_lr, 
+        r_learning_rate=args.r_lr,
         n_steps_to_val=2000,
         output_path="models/",
         device=DEVICE

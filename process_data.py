@@ -7,6 +7,21 @@ from transformers import RobertaTokenizer
 
 import os
 
+REF_LABELS = {
+    "NO-VULNERABILITIES": 0,
+    "OVERFLOW-UNDERFLOW": 1,
+    "RE-ENTRANCY": 2,
+    "TIMESTAMP-DEPENDENCY": 3,
+    "TOD": 4,
+    "TX.ORIGIN": 5,
+    "UNCHECKED-SEND": 6,
+    "UNHANDLED-EXCEPTIONS": 7,
+}
+
+
+IDX2LB = {v: k for k, v in REF_LABELS.items()}
+
+
 def collate(examples):
     '''
     Collate function to prepare batches with attention masks
@@ -104,9 +119,8 @@ class SmardityDataset(Dataset):
                         continue
              
         # Construct label dict   
-        cls_names = list(set(cls_names))
-        cls_names.sort()
-        self.labels = {cls_name: i for i, cls_name in enumerate(cls_names)}
+
+        self.labels = REF_LABELS
         for example in self.examples:
             example[1] = self.labels[example[1]]
 
