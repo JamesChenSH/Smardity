@@ -8,7 +8,7 @@ from transformers import RobertaTokenizer
 import os
 
 REF_LABELS = {
-    "NO-VULNERABILITIES": 0,
+    "CORRECT": 0,
     "OVERFLOW-UNDERFLOW": 1,
     "RE-ENTRANCY": 2,
     "TIMESTAMP-DEPENDENCY": 3,
