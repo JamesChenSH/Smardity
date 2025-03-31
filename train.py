@@ -34,8 +34,12 @@ def train_model(model: RobertaForSequenceClassification,
 
     # Training loop
     steps = 1
+    total_steps = len(train_dataloader) * num_epochs
     for epoch in range(num_epochs):
-        iterator_obj = train_dataloader
+        if not args.is_slurm:
+            iterator_obj = tqdm(train_dataloader, desc="Training")
+        else:
+            iterator_obj = train_dataloader
         for ids, attention_mask, labels in iterator_obj:
             ids = ids.to(device)
             attention_mask = attention_mask.to(device)
@@ -49,7 +53,7 @@ def train_model(model: RobertaForSequenceClassification,
             loss_val.backward()
             optimizer.step()
             if steps % n_steps_to_val == 0:
-                print("Validation at step: {}".format(steps))
+                print("Validation at step: {} / {}".format(steps, total_steps))
                 evaluate(model, val_dataloader, device=device)
                 model.train()
             steps += 1

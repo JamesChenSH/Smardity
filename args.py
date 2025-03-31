@@ -2,13 +2,20 @@ from argparse import ArgumentParser
 
 def args_init():
     parser = ArgumentParser(description='Arguments for training and evaluation')
+    parser.add_argument(
+        "--is_slurm",
+        action='store_true',
+        default=False,
+        help="Whether to use slurm for distributed training. Determines if tqdm is used."
+    )
+
     return parser
 
 def trainer_args(parser:ArgumentParser):
     parser.add_argument(
         '--dataset',
         type=str,
-        default='clean_labeled_contracts.json',
+        default='train.json',
         help='Path to the dataset.'
     )
     parser.add_argument(
