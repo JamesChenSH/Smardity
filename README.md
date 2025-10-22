@@ -1,6 +1,6 @@
 # Smardity
 This is a project designed for CSC2125H 2025S
-
+```
 myapp/                  (Contains the entire Express app)
 ├─ app.js               The core logic of the Express app.
 ├─ bin/                 (Contains the app's executable scripts)
@@ -20,3 +20,4 @@ myapp/                  (Contains the entire Express app)
    ├─ error.pug         View displayed for error pages, such as HTML 404.
    ├─ index.pug         View displayed for the site root (/).
    └─ layout.pug        View template of layout shared by all pages.
+```
